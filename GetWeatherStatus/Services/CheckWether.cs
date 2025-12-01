@@ -1,12 +1,14 @@
-﻿using GetWeatherStatus.IServices;
-using Newtonsoft.Json;
-using System.Net.Http;
-using System;
-using Microsoft.Extensions.Options;
 using GetWeatherStatus.DTO;
-using System.Net.Http.Headers;
-using Microsoft.EntityFrameworkCore;
+using GetWeatherStatus.IServices;
 using GetWeatherStatus.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 
 namespace GetWeatherStatus.Services
 {
@@ -15,35 +17,38 @@ namespace GetWeatherStatus.Services
         private readonly HttpClient httpClient;
         private readonly weatherDb db;
         private readonly Keys appSettings;
-        private readonly string _apiKey = "c2371406-517c-4c54-8fbc-6b921fa97b3e";
 
-        public CheckWether(HttpClient httpClient, IOptions<Keys> appSettings,weatherDb db)
+        public CheckWether(HttpClient httpClient, IOptions<Keys> appSettings, weatherDb db)
         {
             this.httpClient = httpClient;
             this.db = db;
             this.appSettings = appSettings.Value;
         }
+
         public async Task<ApiResponse> GetNearestCityAirQuality(RequestDTO requestDTO)
         {
-            
-            Data data = null;
-            using (var client = new HttpClient())
+            httpClient.BaseAddress = new Uri(appSettings.BaseUrl);
+            httpClient.DefaultRequestHeaders.Clear();
+            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            string x = $"nearest_city?lat={requestDTO.latitude}&lon={requestDTO.longitude}&key={appSettings.Key}";
+            HttpResponseMessage Res = await httpClient.GetAsync(x);
+            if (Res.IsSuccessStatusCode)
             {
-                client.BaseAddress = new Uri(appSettings.BaseUrl);
-                client.DefaultRequestHeaders.Clear();
-                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                string x = $"nearest_city?lat={requestDTO.latitude}&lon={requestDTO.longitude}&key={appSettings.Key}";
-                HttpResponseMessage Res = await client.GetAsync(x);
-                if (Res.IsSuccessStatusCode)
-                {
-                    var EmpResponse = Res.Content.ReadAsStringAsync().Result;
-                    //data = JsonConvert.DeserializeObject<Data>(EmpResponse);
-                    ApiResponse apiResponse = JsonConvert.DeserializeObject<ApiResponse>(EmpResponse);
-                    return apiResponse;
-                }
-                throw new Exception();
+                var EmpResponse = await Res.Content.ReadAsStringAsync();
+                ApiResponse apiResponse = JsonConvert.DeserializeObject<ApiResponse>(EmpResponse);
+                return apiResponse;
             }
+            throw new Exception("Unable to fetch air quality data.");
 
+        }
+
+        public async Task<IEnumerable<AirQuality>> GetAllCountiesWeatherStatus()
+        {
+            return await db.AirQualityRecords
+                .AsNoTracking()
+                .OrderBy(record => record.Location)
+                .ThenByDescending(record => record.Timestamp)
+                .ToListAsync();
         }
 
         public async Task CheckAndSaveAirQuality()
@@ -54,7 +59,7 @@ namespace GetWeatherStatus.Services
                 longitude = "2.352222"
 
             };
-            
+
 
             var airQuality = await GetNearestCityAirQuality(request);
 
@@ -74,10 +79,10 @@ namespace GetWeatherStatus.Services
 
         public async Task<AirQuality> getlastdata()
         {
-          return  db.AirQualityRecords
+            return await db.AirQualityRecords
                 .Where(r => r.Location == "Paris")
                 .OrderByDescending(r => r.aqius) // Assuming Data contains pollution level
-                .FirstOrDefault();
+                .FirstOrDefaultAsync();
         }
 
     }

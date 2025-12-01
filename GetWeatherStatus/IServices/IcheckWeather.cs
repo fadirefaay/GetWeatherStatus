@@ -1,5 +1,6 @@
-﻿using GetWeatherStatus.DTO;
+using GetWeatherStatus.DTO;
 using GetWeatherStatus.Models;
+using System.Collections.Generic;
 
 namespace GetWeatherStatus.IServices
 {
@@ -8,5 +9,6 @@ namespace GetWeatherStatus.IServices
          Task<ApiResponse> GetNearestCityAirQuality(RequestDTO requestDTO);
          Task<AirQuality> getlastdata();
          Task CheckAndSaveAirQuality();
+         Task<IEnumerable<AirQuality>> GetAllCountiesWeatherStatus();
     }
 }
